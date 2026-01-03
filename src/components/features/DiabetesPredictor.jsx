@@ -1,7 +1,29 @@
-import React, { useState } from 'react';
-import { Database, User, Heart, Activity, Info, Cpu, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Database, User, Heart, Activity, Cpu, RefreshCw, AlertTriangle, Clock, X } from 'lucide-react';
 import { Card, Button, ModelExplanation } from '../common/UI';
-import { API_URL } from '../../constants/api';
+
+// 1. Setup Environment Variable for ML Backend
+const ML_API_URL = import.meta.env.VITE_ML_API_URL || 'http://localhost:8000/predict';
+
+// Modern Notification Component
+const NotificationToast = ({ message, subtext, type, onClose }) => (
+  <div className={`fixed top-6 right-6 z-50 flex items-start gap-4 p-4 rounded-xl shadow-2xl border backdrop-blur-md animate-in slide-in-from-right duration-500 max-w-sm ${
+    type === 'busy' 
+      ? 'bg-amber-50/90 border-amber-200 text-amber-900' 
+      : 'bg-indigo-50/90 border-indigo-200 text-indigo-900'
+  }`}>
+    <div className={`p-2 rounded-full ${type === 'busy' ? 'bg-amber-100' : 'bg-indigo-100'}`}>
+      {type === 'busy' ? <Activity className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+    </div>
+    <div className="flex-1">
+      <h4 className="font-bold text-sm">{message}</h4>
+      <p className="text-xs opacity-80 mt-1">{subtext}</p>
+    </div>
+    <button onClick={onClose} className="p-1 hover:bg-black/5 rounded-full transition-colors">
+      <X className="w-4 h-4 opacity-50" />
+    </button>
+  </div>
+);
 
 const DiabetesPredictor = () => {
   const [formData, setFormData] = useState({
@@ -14,36 +36,80 @@ const DiabetesPredictor = () => {
 
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState(null);
+  const [notification, setNotification] = useState(null);
+  
+  // Refs to store timer IDs so we can clear them easily
+  const busyTimerRef = useRef(null);
+  const sleepTimerRef = useRef(null);
 
   const handlePredict = async () => {
     setAnalyzing(true);
     setResult(null);
-    try {
-      const prompt = `Act as the following FastAPI backend for Diabetes Risk Prediction.
-      Input Schema: ${JSON.stringify(formData)}
-      Logic: Calculate prob score (0-1), 1 if > 0.5, risk_level based on score. Return JSON.`;
+    setNotification(null);
 
-      const response = await fetch(API_URL, {
+    // 2. Start Timers for Server Delay Logic
+    
+    // > 10 Seconds: Server is Busy
+    busyTimerRef.current = setTimeout(() => {
+      setNotification({
+        type: 'busy',
+        message: 'High Traffic Volume',
+        subtext: 'The analysis server is experiencing heavy load. Wrapping up calculations...'
+      });
+    }, 10000); // 10 sec
+
+    // > 40 Seconds: Server Went to Sleep (Cold Start)
+    sleepTimerRef.current = setTimeout(() => {
+      setNotification({
+        type: 'sleep',
+        message: 'Waking Up Server',
+        subtext: 'The ML instance went to sleep due to inactivity (this may take a moment)...'
+      });
+    }, 40000); // 40 sec
+
+    try {
+      // 3. Direct API Call using Env Variable (No Gemini Wrapper)
+      const response = await fetch(ML_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        body: JSON.stringify(formData)
       });
 
+      if (!response.ok) throw new Error("Server Error");
+
       const data = await response.json();
-      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) setResult(JSON.parse(jsonMatch[0]));
+      setResult(data);
+
     } catch (error) {
-      setResult({ status: "error", message: "Error calculating risk profile." });
+      console.error(error);
+      setResult({ 
+        risk_assessment: "Error", 
+        probability_score: 0, 
+        detailed_analysis: "Failed to connect to ML Prediction Node. Please check your connection." 
+      });
     } finally {
+      // 4. Cleanup: Clear timers and loading state
+      clearTimeout(busyTimerRef.current);
+      clearTimeout(sleepTimerRef.current);
       setAnalyzing(false);
+      // Optional: Clear notification on success after a short delay, or leave it for user to close
+      setTimeout(() => setNotification(null), 3000); 
     }
   };
 
   const updateField = (key, value) => setFormData(prev => ({ ...prev, [key]: value }));
 
   return (
-    <div className="space-y-12 animate-in slide-in-from-bottom-4 duration-700">
+    <div className="space-y-12 animate-in slide-in-from-bottom-4 duration-700 relative">
+      
+      {/* Notification Popup */}
+      {notification && (
+        <NotificationToast 
+          {...notification} 
+          onClose={() => setNotification(null)} 
+        />
+      )}
+
       <div className="text-center space-y-2">
         <h2 className="text-4xl font-black text-slate-900">Metabolic Risk Pipeline</h2>
         <p className="text-slate-500">Full diagnostic suite for Type 2 Diabetes prediction using Ensemble learning.</p>
@@ -105,6 +171,8 @@ const DiabetesPredictor = () => {
               <div className="space-y-6">
                 <div className="flex items-center gap-3"><RefreshCw className="w-5 h-5 text-emerald-500 animate-spin" /><span className="text-sm font-bold text-slate-400">Processing...</span></div>
                 <div className="h-40 bg-slate-50 rounded-2xl animate-pulse"></div>
+                {/* Fallback msg in box if taking long */}
+                {notification && <p className="text-xs text-center text-slate-400 animate-pulse">{notification.message}</p>}
               </div>
             ) : result ? (
               <div className="space-y-8">

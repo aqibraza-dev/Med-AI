@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Stethoscope } from 'lucide-react';
 import { Card, Button, ModelExplanation } from '../common/UI';
-import { API_URL } from '../../constants/api';
+
 
 const MedicineRecommendation = () => {
   const [symptoms, setSymptoms] = useState("");
