@@ -3,7 +3,10 @@ import { Microscope, Upload, Activity, Info, AlertCircle, CheckCircle2, FileImag
 import { Card, Button, ModelExplanation } from '../common/UI';
 
 // 2. Use Env Variable (Support for Vite or CRA)
-const API_URL = import.meta.env.SKIN_CANCER_API
+const API_URL = import.meta.env.VITE_SKIN_CANCER_API;
+
+// Optional: Add a fallback for debugging
+if (!API_URL) console.error("API URL is missing! Check .env variables.");
 
 // 1. Import local assets
 import sample1 from '../../assets/actinic_keratosis.jpg'; 
