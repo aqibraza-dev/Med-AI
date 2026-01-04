@@ -5,9 +5,6 @@ import { Card, Button, ModelExplanation } from '../common/UI';
 // 2. Use Env Variable (Support for Vite or CRA)
 const API_URL = import.meta.env.VITE_SKIN_CANCER_API;
 
-// Optional: Add a fallback for debugging
-if (!API_URL) console.error("API URL is missing! Check .env variables.");
-
 // 1. Import local assets
 import sample1 from '../../assets/actinic_keratosis.jpg'; 
 import sample2 from '../../assets/bascal_cell.jpg';
@@ -18,6 +15,34 @@ import sample6 from '../../assets/pigmented_benign.jpg';
 import sample7 from '../../assets/seaborrheic_keratosis.jpg';
 import sample8 from '../../assets/squamous_cell.jpg'; 
 import sample9 from '../../assets/bascal_cell.jpg';
+
+// --- HELPER: Client-Side Resizing ---
+// This prevents sending 4MB+ images to the server, keeping RAM usage low.
+const resizeImage = (imageSrc, width = 100, height = 75) => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.src = imageSrc;
+    img.crossOrigin = "Anonymous"; // Handle cross-origin images if needed
+
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      
+      // Draw and resize
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      // Export as small JPEG blob (approx 5KB)
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error("Canvas to Blob failed"));
+      }, 'image/jpeg', 0.95);
+    };
+    
+    img.onerror = (err) => reject(err);
+  });
+};
 
 const CancerDetection = () => {
   const [selectedImage, setSelectedImage] = useState(null);
@@ -77,10 +102,13 @@ const CancerDetection = () => {
     setLatencyMsg(null);
 
     try {
-      const fetchResponse = await fetch(selectedImage);
-      const blob = await fetchResponse.blob();
+      // --- CRITICAL MEMORY FIX ---
+      // Instead of sending the full file, we resize it in the browser first.
+      console.log("Resizing image on client...");
+      const resizedBlob = await resizeImage(selectedImage, 100, 75);
+      
       const formData = new FormData();
-      formData.append("file", blob, "scan.jpg");
+      formData.append("file", resizedBlob, "resized_scan.jpg");
 
       const response = await fetch(API_URL, {
         method: 'POST',
@@ -114,7 +142,7 @@ const CancerDetection = () => {
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-cyan-500">Skin Cancer Classification</span>
           </h2>
           <p className="text-slate-500 max-w-2xl mx-auto text-lg font-light leading-relaxed">
-            Advanced malignancy screening using Deep Convolutional Neural Networks(Only for Educational Purposes).
+            Advanced malignancy screening using Deep Convolutional Neural Networks (Only for Educational Purposes).
           </p>
         </div>
 
