@@ -3,7 +3,8 @@ import { Microscope, Upload, Activity, Info, AlertCircle, CheckCircle2, FileImag
 import { Card, Button, ModelExplanation } from '../common/UI';
 
 // 2. Use Env Variable (Support for Vite or CRA)
-const API_URL = import.meta.env.VITE_SKIN_CANCER_API;
+const API_URL = import.meta.env.SKIN_CANCER_API || "http://localhost:8000/predict";
+
 
 // 1. Import local assets
 import sample1 from '../../assets/actinic_keratosis.jpg'; 
@@ -16,31 +17,27 @@ import sample7 from '../../assets/seaborrheic_keratosis.jpg';
 import sample8 from '../../assets/squamous_cell.jpg'; 
 import sample9 from '../../assets/bascal_cell.jpg';
 
-// --- HELPER: Client-Side Resizing ---
-// This prevents sending 4MB+ images to the server, keeping RAM usage low.
-const resizeImage = (imageSrc, width = 100, height = 75) => {
-  return new Promise((resolve, reject) => {
+// --- NEW HELPER: Resize Image Function ---
+const resizeImage = (imageSrc, targetWidth, targetHeight) => {
+  return new Promise((resolve) => {
     const img = new Image();
     img.src = imageSrc;
-    img.crossOrigin = "Anonymous"; // Handle cross-origin images if needed
+    img.crossOrigin = "anonymous"; // Handle cross-origin issues if any
 
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
       const ctx = canvas.getContext('2d');
       
-      // Draw and resize
-      ctx.drawImage(img, 0, 0, width, height);
+      // Draw image to canvas with specific dimensions
+      ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
       
-      // Export as small JPEG blob (approx 5KB)
+      // Convert canvas to Blob (JPEG for efficiency)
       canvas.toBlob((blob) => {
-        if (blob) resolve(blob);
-        else reject(new Error("Canvas to Blob failed"));
+        resolve(blob);
       }, 'image/jpeg', 0.95);
     };
-    
-    img.onerror = (err) => reject(err);
   });
 };
 
@@ -53,15 +50,15 @@ const CancerDetection = () => {
 
   // 1. Samples from local assets
   const SAMPLES = [
-    { id: 1, label: "Actinic Keratosis", url: sample1 },
-    { id: 2, label: "Bascal Cell", url: sample2 },
-    { id: 3, label: "Dermatofibroma", url: sample3 },
-    { id: 4, label: "Melanoma", url: sample4},
-    { id: 5, label: "Nevus", url: sample5 },
-    { id: 6, label: "PigmentedBenign", url: sample6 },
-    { id: 7, label: "SeaborrheicLeratosis", url: sample7 },
-    { id: 8, label: "Squamous Cell", url: sample8 },
-    { id: 9, label: "VascularLesion", url: sample9 },
+    { id: 1, label: "", url: sample1 },
+    { id: 2, label: "", url: sample2 },
+    { id: 3, label: "", url: sample3 },
+    { id: 4, label: "", url: sample4},
+    { id: 5, label: "", url: sample5 },
+    // { id: 6, label: "PigmentedBenign", url: sample6 },
+    // { id: 7, label: "SeaborrheicLeratosis", url: sample7 },
+    // { id: 8, label: "Squamous Cell", url: sample8 },
+    // { id: 9, label: "VascularLesion", url: sample9 },
   ]
 
   const handleFileUpload = (e) => {
@@ -102,13 +99,15 @@ const CancerDetection = () => {
     setLatencyMsg(null);
 
     try {
-      // --- CRITICAL MEMORY FIX ---
-      // Instead of sending the full file, we resize it in the browser first.
-      console.log("Resizing image on client...");
+      // --- MODIFIED SECTION START ---
+      // Instead of fetching the original (large) image, we resize it first.
+      // Target Dimensions: 100x75 (Matches model input shape)
       const resizedBlob = await resizeImage(selectedImage, 100, 75);
       
       const formData = new FormData();
-      formData.append("file", resizedBlob, "resized_scan.jpg");
+      // Send the resized blob instead of the original file
+      formData.append("file", resizedBlob, "scan.jpg");
+      // --- MODIFIED SECTION END ---
 
       const response = await fetch(API_URL, {
         method: 'POST',
@@ -142,7 +141,7 @@ const CancerDetection = () => {
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-cyan-500">Skin Cancer Classification</span>
           </h2>
           <p className="text-slate-500 max-w-2xl mx-auto text-lg font-light leading-relaxed">
-            Advanced malignancy screening using Deep Convolutional Neural Networks (Only for Educational Purposes).
+            Advanced malignancy screening using Deep Convolutional Neural Networks(Only for Educational Purposes).
           </p>
         </div>
 
