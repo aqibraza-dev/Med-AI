@@ -3,7 +3,8 @@ import { Database, User, Heart, Activity, Cpu, RefreshCw, AlertTriangle, Clock, 
 import { Card, Button, ModelExplanation } from '../common/UI';
 
 // 1. Setup Environment Variable for ML Backend
-const ML_API_URL = import.meta.env.VITE_ML_API_URL || 'http://localhost:8000/predict';
+// Append the specific endpoint path defined in main.py
+const ML_API_URL = import.meta.env.VITE_DIABETES_API_URL || 'http://localhost:8000/predictdiabetes';
 
 // Modern Notification Component
 const NotificationToast = ({ message, subtext, type, onClose }) => (
@@ -26,19 +27,38 @@ const NotificationToast = ({ message, subtext, type, onClose }) => (
 );
 
 const DiabetesPredictor = () => {
+  // Updated default state to match training data defaults
   const [formData, setFormData] = useState({
-    age: 45, bmi: 28.5, waist_to_hip_ratio: 0.85, systolic_bp: 120,
-    physical_activity_minutes_per_week: 150, diet_score: 6.5, sleep_hours_per_day: 7.5,
-    screen_time_hours_per_day: 3.0, gender: "Female", ethnicity: "Hispanic",
-    education_level: "Bachelor", income_level: "Middle", smoking_status: "Never",
-    employment_status: "Employed", family_history_diabetes: 1, hypertension_history: 0, cardiovascular_history: 0
+    age: 45, 
+    bmi: 28.5, 
+    waist_to_hip_ratio: 0.85, 
+    systolic_bp: 120,
+    physical_activity_minutes_per_week: 150, 
+    diet_score: 6.5, 
+    sleep_hours_per_day: 7.5,
+    screen_time_hours_per_day: 3.0, 
+    diastolic_bp: 80,
+    heart_rate: 72,
+    alcohol_consumption_per_week: 2.0,
+    cholesterol_total: 200,
+    ldl_cholesterol: 100,
+    hdl_cholesterol: 50,
+    triglycerides: 150,
+    gender: "Female", 
+    ethnicity: "Hispanic",
+    education_level: "Graduate", // Updated to match notebook
+    income_level: "Middle", 
+    smoking_status: "Never",
+    employment_status: "Employed", 
+    family_history_diabetes: 1, 
+    hypertension_history: 0, 
+    cardiovascular_history: 0
   });
 
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState(null);
   const [notification, setNotification] = useState(null);
   
-  // Refs to store timer IDs so we can clear them easily
   const busyTimerRef = useRef(null);
   const sleepTimerRef = useRef(null);
 
@@ -47,28 +67,24 @@ const DiabetesPredictor = () => {
     setResult(null);
     setNotification(null);
 
-    // 2. Start Timers for Server Delay Logic
-    
-    // > 10 Seconds: Server is Busy
+    // Timer Logic for User Feedback
     busyTimerRef.current = setTimeout(() => {
       setNotification({
         type: 'busy',
         message: 'High Traffic Volume',
         subtext: 'The analysis server is experiencing heavy load. Wrapping up calculations...'
       });
-    }, 10000); // 10 sec
+    }, 10000); 
 
-    // > 40 Seconds: Server Went to Sleep (Cold Start)
     sleepTimerRef.current = setTimeout(() => {
       setNotification({
         type: 'sleep',
         message: 'Waking Up Server',
         subtext: 'The ML instance went to sleep due to inactivity (this may take a moment)...'
       });
-    }, 40000); // 40 sec
+    }, 40000); 
 
     try {
-      // 3. Direct API Call using Env Variable (No Gemini Wrapper)
       const response = await fetch(ML_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -88,21 +104,41 @@ const DiabetesPredictor = () => {
         detailed_analysis: "Failed to connect to ML Prediction Node. Please check your connection." 
       });
     } finally {
-      // 4. Cleanup: Clear timers and loading state
       clearTimeout(busyTimerRef.current);
       clearTimeout(sleepTimerRef.current);
       setAnalyzing(false);
-      // Optional: Clear notification on success after a short delay, or leave it for user to close
       setTimeout(() => setNotification(null), 3000); 
     }
   };
 
   const updateField = (key, value) => setFormData(prev => ({ ...prev, [key]: value }));
 
+  // --- CRITICAL UPDATE: OPTIONS MUST MATCH NOTEBOOK CELL 17 ---
+  // From Notebook: education_order = ['No formal', 'Highschool', 'Graduate', 'Postgraduate']
+  // From Notebook: income_order = ['Low', 'Lower-Middle', 'Middle', 'Upper-Middle', 'High']
+  
+  const socioOptions = [
+    { label: "Gender", key: "gender", options: ["Male", "Female", "Other"] },
+    { label: "Ethnicity", key: "ethnicity", options: ["White", "Hispanic", "Asian", "Black", "Other"] },
+    { 
+      label: "Education", 
+      key: "education_level", 
+      // MATCHED TO NOTEBOOK:
+      options: ["No formal", "Highschool", "Graduate", "Postgraduate"] 
+    }, 
+    { 
+      label: "Income", 
+      key: "income_level", 
+      // MATCHED TO NOTEBOOK:
+      options: ["Low", "Lower-Middle", "Middle", "Upper-Middle", "High"] 
+    }, 
+    { label: "Smoking", key: "smoking_status", options: ["Never", "Former", "Current"] }, 
+    { label: "Employment", key: "employment_status", options: ["Employed", "Unemployed", "Student", "Retired"] }
+  ];
+
   return (
     <div className="space-y-12 animate-in slide-in-from-bottom-4 duration-700 relative">
       
-      {/* Notification Popup */}
       {notification && (
         <NotificationToast 
           {...notification} 
@@ -111,7 +147,7 @@ const DiabetesPredictor = () => {
       )}
 
       <div className="text-center space-y-2">
-        <h2 className="text-4xl font-black text-slate-900">Metabolic Risk Pipeline</h2>
+        <h2 className="text-4xl font-black text-slate-900">Diabetic Risk Prediction</h2>
         <p className="text-slate-500">Full diagnostic suite for Type 2 Diabetes prediction using Ensemble learning.</p>
       </div>
 
@@ -131,11 +167,38 @@ const DiabetesPredictor = () => {
               </div>
             </div>
 
-            {/* Socio-Demographics */}
+            <div className="space-y-4">
+  <h3 className="text-sm font-black text-purple-600 uppercase tracking-widest flex items-center gap-2">
+    <Activity className="w-4 h-4" /> Clinical & Lab Results
+  </h3>
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    {[
+      { label: "Diastolic BP", key: "diastolic_bp" },
+      { label: "Heart Rate", key: "heart_rate" },
+      { label: "Alcohol (units/wk)", key: "alcohol_consumption_per_week" },
+      { label: "Total Cholesterol", key: "cholesterol_total" },
+      { label: "LDL Cholesterol", key: "ldl_cholesterol" },
+      { label: "HDL Cholesterol", key: "hdl_cholesterol" },
+      { label: "Triglycerides", key: "triglycerides" }
+    ].map(field => (
+      <div key={field.key} className="space-y-1">
+        <label className="text-[10px] font-bold text-slate-400 uppercase">{field.label}</label>
+        <input 
+          type="number" 
+          value={formData[field.key]} 
+          onChange={e => updateField(field.key, parseFloat(e.target.value))} 
+          className="w-full bg-purple-50 border border-purple-100 rounded-lg px-3 py-2 text-sm font-semibold outline-none focus:ring-2 ring-purple-500/20" 
+        />
+      </div>
+    ))}
+  </div>
+</div>
+
+            {/* Socio-Demographics (Updated Options) */}
             <div className="space-y-4">
               <h3 className="text-sm font-black text-blue-600 uppercase tracking-widest flex items-center gap-2"><User className="w-4 h-4" /> Socio-Demographics</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {[{ label: "Gender", key: "gender", options: ["Male", "Female", "Other"] }, { label: "Ethnicity", key: "ethnicity", options: ["White", "Hispanic", "Asian", "Black", "Other"] }, { label: "Education", key: "education_level", options: ["High School", "Bachelor", "Master", "PhD"] }, { label: "Income", key: "income_level", options: ["Low", "Middle", "High"] }, { label: "Smoking", key: "smoking_status", options: ["Never", "Former", "Current"] }, { label: "Employment", key: "employment_status", options: ["Employed", "Unemployed", "Student", "Retired"] }].map(field => (
+                {socioOptions.map(field => (
                   <div key={field.key} className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-400 uppercase">{field.label}</label>
                     <select value={formData[field.key]} onChange={e => updateField(field.key, e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold outline-none">
@@ -171,7 +234,6 @@ const DiabetesPredictor = () => {
               <div className="space-y-6">
                 <div className="flex items-center gap-3"><RefreshCw className="w-5 h-5 text-emerald-500 animate-spin" /><span className="text-sm font-bold text-slate-400">Processing...</span></div>
                 <div className="h-40 bg-slate-50 rounded-2xl animate-pulse"></div>
-                {/* Fallback msg in box if taking long */}
                 {notification && <p className="text-xs text-center text-slate-400 animate-pulse">{notification.message}</p>}
               </div>
             ) : result ? (
@@ -191,8 +253,8 @@ const DiabetesPredictor = () => {
 
       <ModelExplanation 
         title="Diabetes Risk Pipeline" icon={Cpu} color="emerald"
-        steps={[{ name: "Validation", desc: "Pydantic-style schema validation." }, { name: "Encoding", desc: "One-Hot and Ordinal encoding." }, { name: "Inference", desc: "Ensemble of decision trees." }]}
-        technicalDesc="Scikit-learn Pipeline with StandardScaler and Gradient Boosted Classifier."
+        steps={[{ name: "Validation", desc: "FastAPI Pydantic schema validation." }, { name: "Encoding", desc: "One-Hot and Ordinal encoding via Scikit-Learn." }, { name: "Inference", desc: "Ensemble (XGBoost, LightGBM, CatBoost)." }]}
+        technicalDesc="React frontend connected to Python/FastAPI backend serving a VotingClassifier ensemble."
       />
     </div>
   );
